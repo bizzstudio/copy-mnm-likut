@@ -498,7 +498,7 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
           source_city: "מושב קדרון",
           source_street: "הרימון",
           source_number: "12",
-          source_recipient_name: "משק קרישנר",
+          source_recipient_name: "MNM",
           source_phone: "0586692614",
           destination_city: order?.user_info?.address?.city?.city_name_he,
           destination_street: order?.user_info?.address?.street,
