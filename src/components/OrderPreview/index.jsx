@@ -140,16 +140,6 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
                             />
                         ),
                         quantity: item.quantity,
-                        scan: (
-                            <button
-                                type="button"
-                                onClick={() => setDeductModal({ open: true, barcode, productTitle: productTitle || "" })}
-                                className="flex items-center justify-center gap-1 rounded-lg bg-mainColor px-2 py-1.5 text-white text-sm hover:opacity-90"
-                            >
-                                <FaBarcode size={14} />
-                                {words.scanForPick}
-                            </button>
-                        ),
                     };
                 })
             );
@@ -212,11 +202,6 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
         {
             title: words.quantity,
             dataIndex: "quantity",
-        },
-        {
-            title: "",
-            dataIndex: "scan",
-            width: 120,
         },
     ];
 

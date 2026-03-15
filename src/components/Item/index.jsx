@@ -1,5 +1,5 @@
 // meshek_Likut_system/src/components/Item/index.jsx
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Select, Table } from "antd";
 import Loader from "../Loader";
@@ -7,9 +7,13 @@ import axios from "axios";
 import logo from "../../../public/logo.jpeg";
 import { languageContext } from "../../App";
 import "./style.css";
-import { getWord } from "../Language";
-import { FaCheckCircle, FaBoxOpen, FaPlus, FaMinus, FaCheck } from "react-icons/fa";
+import { getWord, getWordString } from "../Language";
+import { FaCheckCircle, FaBoxOpen, FaPlus, FaMinus, FaCheck, FaBarcode, FaCamera } from "react-icons/fa";
 import { FaXmark } from "react-icons/fa6";
+
+const Scanner = lazy(() =>
+  import("@yudiel/react-qr-scanner").then((mod) => ({ default: mod.Scanner }))
+);
 import spinnerLoadingImage from "/spinner.gif";
 import dayjs from "dayjs";
 import loginImg from "/loginImg.svg"
@@ -31,6 +35,11 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
   const [submiting, setSubmiting] = useState(false);
   const [pickedQuantities, setPickedQuantities] = useState({});
   const [markedItems, setMarkedItems] = useState({});
+  const [scanProductModalOpen, setScanProductModalOpen] = useState(false);
+  const [scanProductBarcode, setScanProductBarcode] = useState("");
+  const [scanProductError, setScanProductError] = useState(null);
+  const [showScannerInScanProduct, setShowScannerInScanProduct] = useState(false);
+  const [loadScanProductScanner, setLoadScanProductScanner] = useState(false);
 
   const numOfBoxesWord = getWord('numOfBoxes');
   const choseMelaket = getWord('choseMelaket');
@@ -53,34 +62,26 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
   // console.log('order: ', order)
   // console.log('orders: ', orders)
   useEffect(() => {
-    // בדוק אם ההזמנה קיימת ב-orders מהפרופס
-    const ordered = orders?.find((order) => order.invoice == numberOfOrder.id);
-
-    if (ordered) {
-      setOrder(ordered); // אם מצאנו את ההזמנה, נעדכן את הסטייט
-    } else {
-      // אם לא מצאנו את ההזמנה, נמשוך אותה מהשרת
-      const fetchOrder = async () => {
-        try {
-          const response = await axios.get(
-            `${import.meta.env.VITE_MAIN_SERVER_URL}/app/orders/${numberOfOrder.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-            }
-          );
-          setOrder(response.data); // עדכון הסטייט בהזמנה שנשלפה מהשרת
-        } catch (error) {
-          console.error("Error fetching order:", error);
-          alert(words.orderNotFound.props.children);
-          nav("/items"); // אם לא ניתן למשוך את ההזמנה, נחזור לעמוד ההזמנות
-        }
-      };
-
-      fetchOrder(); // קריאה לפונקציה שמבצעת את הבקשה
-    }
-  }, [orders, numberOfOrder.id, nav]);
+    // תמיד למשוך את ההזמנה מהשרת כדי לקבל עגלה עם ברקודים (לסריקת מוצר)
+    const fetchOrder = async () => {
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_MAIN_SERVER_URL}/app/orders/${numberOfOrder.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }
+        );
+        setOrder(response.data);
+      } catch (error) {
+        console.error("Error fetching order:", error);
+        alert(words.orderNotFound.props.children);
+        nav("/items");
+      }
+    };
+    if (numberOfOrder.id) fetchOrder();
+  }, [numberOfOrder.id, nav]);
 
   console.log('order: ', order)
 
@@ -101,13 +102,13 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
 
   // פונקציה לסימון/ביטול סימון כל הצ'קבוקסים
   const toggleAllItems = () => {
-    const allItemsMarked = order?.cart?.every(item => markedItems[item._id] === true);
+    const allItemsMarked = order?.cart?.every((item) => markedItems[item._id != null ? String(item._id) : item._id] === true);
 
     if (allItemsMarked) {
-      // אם הכל מסומן, נבטל את כל הסימונים
       const allUnmarked = {};
-      order.cart.forEach(item => {
-        allUnmarked[item._id] = false;
+      order.cart.forEach((item) => {
+        const pid = item._id != null ? String(item._id) : item._id;
+        if (pid) allUnmarked[pid] = false;
       });
       setMarkedItems(allUnmarked);
 
@@ -117,10 +118,10 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
         JSON.stringify(allUnmarked)
       );
     } else {
-      // אם לא הכל מסומן, נסמן הכל
       const allMarked = {};
-      order.cart.forEach(item => {
-        allMarked[item._id] = true;
+      order.cart.forEach((item) => {
+        const pid = item._id != null ? String(item._id) : item._id;
+        if (pid) allMarked[pid] = true;
       });
       setMarkedItems(allMarked);
 
@@ -148,6 +149,74 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
     );
   };
 
+  const closeScanProductModal = () => {
+    setScanProductModalOpen(false);
+    setScanProductBarcode("");
+    setScanProductError(null);
+    setShowScannerInScanProduct(false);
+    setLoadScanProductScanner(false);
+    setScanSuccessItem(null);
+    setDeductSubmitting(false);
+  };
+
+  const openScanProductScanner = () => {
+    setShowScannerInScanProduct(true);
+    setLoadScanProductScanner(true);
+  };
+
+  const handleScanProductScan = (detectedCodes) => {
+    if (!detectedCodes?.length) return;
+    const barcode = detectedCodes[0]?.rawValue;
+    if (barcode) {
+      setScanProductBarcode(barcode);
+      setShowScannerInScanProduct(false);
+      applyScannedBarcode(barcode);
+    }
+  };
+
+  const productIdStr = (item) => (item?._id != null ? String(item._id) : null);
+  const normalizeBarcode = (v) => String(v ?? "").trim().replace(/^0+/, "") || "";
+  const [scanSuccessItem, setScanSuccessItem] = useState(null);
+  const [deductSubmitting, setDeductSubmitting] = useState(false);
+
+  const applyScannedBarcode = (barcode) => {
+    const trimmed = normalizeBarcode(barcode);
+    if (!trimmed || !order?.cart) return;
+    const item = order.cart.find((i) => normalizeBarcode(i.barcode) === trimmed);
+    if (!item) {
+      setScanProductError(getWordString(language, "productNotInOrder"));
+      return;
+    }
+    setScanProductError(null);
+    const pid = productIdStr(item);
+    if (!pid) return;
+    const nextQuantities = { ...pickedQuantities, [pid]: item.quantity };
+    setPickedQuantities(nextQuantities);
+    sessionStorage.setItem(`pickedQuantities_${numberOfOrder.id}`, JSON.stringify(nextQuantities));
+    const nextMarked = { ...markedItems, [pid]: true };
+    setMarkedItems(nextMarked);
+    sessionStorage.setItem(`markedItems_${numberOfOrder.id}`, JSON.stringify(nextMarked));
+    setScanSuccessItem({ barcode: trimmed, quantity: item.quantity, title: item.title?.he || item.title?.en });
+  };
+
+  const handleDeductFromStock = async () => {
+    if (!scanSuccessItem?.barcode || !scanSuccessItem?.quantity) return;
+    setDeductSubmitting(true);
+    try {
+      await axios.patch(
+        `${import.meta.env.VITE_MAIN_SERVER_URL}/products/barcode/${encodeURIComponent(scanSuccessItem.barcode)}/deduct-stock-app`,
+        { quantity: scanSuccessItem.quantity },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      );
+      alert(getWordString(language, "stockDeductedSuccess"));
+      closeScanProductModal();
+    } catch (err) {
+      alert(err?.response?.data?.message?.he || err?.response?.data?.message?.en || getWordString(language, "errorUpdateOrder"));
+    } finally {
+      setDeductSubmitting(false);
+    }
+  };
+
   const columns = [
     {
       title: "",
@@ -155,7 +224,7 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
       align: "center",
       width: 60,
       render: (_, record) => {
-        const productId = record.key;
+        const productId = record.key != null ? String(record.key) : record.key;
         const isMarked = markedItems[productId] || false;
 
         return (
@@ -182,7 +251,7 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
       title: getWord('quantity'),
       dataIndex: "quantity",
       render: (originalQuantity, record) => {
-        const productId = record.key;
+        const productId = record.key != null ? String(record.key) : record.key;
         const pickedQty = pickedQuantities[productId] !== undefined ? pickedQuantities[productId] : 0;
 
         return (
@@ -217,6 +286,27 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
           </div>
         );
       }
+    },
+    {
+      title: getWord('scanForPick'),
+      dataIndex: "scan",
+      align: "center",
+      width: 120,
+      render: (_, record) => (
+        <button
+          type="button"
+          onClick={() => {
+            setScanProductError(null);
+            setScanProductBarcode("");
+            setScanSuccessItem(null);
+            setScanProductModalOpen(true);
+          }}
+          className="flex items-center justify-center gap-1 rounded-lg bg-mainColor px-2 py-1.5 text-white text-sm hover:opacity-90 w-full"
+        >
+          <FaBarcode size={14} />
+          {getWord('scanForPick')}
+        </button>
+      ),
     },
   ];
 
@@ -335,9 +425,10 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
     if (order) {
       getText(order.customer_note);
       setData(
-        order.cart.sort((a, b) => a.barcode - b.barcode).map((item, index) => {
+        order.cart.sort((a, b) => String(a.barcode || "").localeCompare(String(b.barcode || ""))).map((item) => {
+          const pid = item._id != null ? String(item._id) : item._id;
           return {
-            key: item._id,
+            key: pid,
             name: <div>
               <div>{language === "hebrew" ? item.title.he : item.title.en}</div>
               <div>₪{item.price || item.originalPrice}</div>
@@ -361,20 +452,23 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
       let initialPickedQuantities = {};
 
       if (savedQuantities) {
-        // טעינה מ-sessionStorage
         try {
           initialPickedQuantities = JSON.parse(savedQuantities);
+          order.cart.forEach((item) => {
+            const pid = item._id != null ? String(item._id) : item._id;
+            if (pid && initialPickedQuantities[pid] === undefined) initialPickedQuantities[pid] = item.quantity;
+          });
         } catch (error) {
           console.error('Error parsing saved quantities:', error);
-          // אם יש שגיאה, נאתחל מחדש לכמות מלאה
-          order.cart.forEach(item => {
-            initialPickedQuantities[item._id] = item.quantity;
+          order.cart.forEach((item) => {
+            const pid = item._id != null ? String(item._id) : item._id;
+            if (pid) initialPickedQuantities[pid] = item.quantity;
           });
         }
       } else {
-        // ברירת מחדל - כמות מלאה לכל מוצר
-        order.cart.forEach(item => {
-          initialPickedQuantities[item._id] = item.quantity;
+        order.cart.forEach((item) => {
+          const pid = item._id != null ? String(item._id) : item._id;
+          if (pid) initialPickedQuantities[pid] = item.quantity;
         });
       }
 
@@ -385,20 +479,23 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
       let initialMarkedItems = {};
 
       if (savedMarkedItems) {
-        // טעינה מ-sessionStorage
         try {
           initialMarkedItems = JSON.parse(savedMarkedItems);
+          order.cart.forEach((item) => {
+            const pid = item._id != null ? String(item._id) : item._id;
+            if (pid && initialMarkedItems[pid] === undefined) initialMarkedItems[pid] = false;
+          });
         } catch (error) {
           console.error('Error parsing saved marked items:', error);
-          // אם יש שגיאה, נאתחל מחדש ללא סימון
-          order.cart.forEach(item => {
-            initialMarkedItems[item._id] = false;
+          order.cart.forEach((item) => {
+            const pid = item._id != null ? String(item._id) : item._id;
+            if (pid) initialMarkedItems[pid] = false;
           });
         }
       } else {
-        // ברירת מחדל - ללא סימון
-        order.cart.forEach(item => {
-          initialMarkedItems[item._id] = false;
+        order.cart.forEach((item) => {
+          const pid = item._id != null ? String(item._id) : item._id;
+          if (pid) initialMarkedItems[pid] = false;
         });
       }
 
@@ -427,7 +524,7 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
     }
 
     // בדיקה שכל הצ'קבוקסים מסומנים
-    const allItemsMarked = order?.cart?.every((item) => markedItems[item._id] === true);
+    const allItemsMarked = order?.cart?.every((item) => markedItems[item._id != null ? String(item._id) : item._id] === true);
     if (!allItemsMarked) {
       alert(notAllItemsMarked.props.children);
       return;
@@ -477,10 +574,10 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
 
       // בניית pickedItems
       const pickedItems = order.cart
-        .map((item) => ({
-          _id: item._id,
-          quantity: pickedQuantities[item._id] || 0,
-        }))
+        .map((item) => {
+          const pid = item._id != null ? String(item._id) : item._id;
+          return { _id: item._id, quantity: pickedQuantities[pid] || 0 };
+        })
         .filter((item) => item.quantity > 0);
 
       // בניית payload ל-LionWheel (אם יש משלוח)
@@ -607,7 +704,7 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
 
             <div className="flex gap-2 justify-center">
               {(() => {
-                const allItemsMarked = order?.cart?.every(item => markedItems[item._id] === true);
+                const allItemsMarked = order?.cart?.every((item) => markedItems[item._id != null ? String(item._id) : item._id] === true);
                 return (
                   <button
                     onClick={toggleAllItems}
@@ -647,6 +744,93 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
             </div>
           ) : (
             <Loader />
+          )}
+
+          {/* מודל סריקת מוצר – עדכון כמות לפי ההזמנה + הורד ממלאי */}
+          {scanProductModalOpen && (
+            <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/50 p-4" dir="rtl" onClick={(e) => e.target === e.currentTarget && closeScanProductModal()}>
+              <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-gray-900">{getWordString(language, "scanForPick")}</h3>
+                  <button type="button" onClick={closeScanProductModal} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+                </div>
+                {scanSuccessItem ? (
+                  <>
+                    <p className="mb-2 text-sm text-green-700 font-medium">הכמות עודכנה לכמות בהזמנה.</p>
+                    {scanSuccessItem.title && <p className="mb-2 text-sm text-gray-600 truncate">{scanSuccessItem.title}</p>}
+                    <p className="mb-3 text-sm text-gray-500">כמות: {scanSuccessItem.quantity}</p>
+                    <div className="flex gap-2 justify-end">
+                      <button type="button" onClick={closeScanProductModal} className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700">{getWordString(language, "close")}</button>
+                      <button
+                        type="button"
+                        onClick={handleDeductFromStock}
+                        disabled={deductSubmitting}
+                        className="rounded-lg bg-mainColor px-4 py-2 text-white disabled:opacity-50"
+                      >
+                        {deductSubmitting ? "..." : getWordString(language, "deductFromStock")}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2 text-sm text-gray-600">{getWordString(language, "scanInstructions")}</p>
+                    <div className="mb-3">
+                      <button
+                        type="button"
+                        onClick={openScanProductScanner}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-mainColor py-3 px-4 text-white text-base font-medium hover:opacity-90 mb-2"
+                      >
+                        <FaCamera size={20} />
+                        {getWordString(language, "scanBarcode")}
+                      </button>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{getWordString(language, "enterBarcode")}</label>
+                      <input
+                        type="text"
+                        value={scanProductBarcode}
+                        onChange={(e) => { setScanProductBarcode(e.target.value); setScanProductError(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") applyScannedBarcode(e.target.value); }}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+                        dir="ltr"
+                        placeholder="7290000048437"
+                      />
+                      {showScannerInScanProduct && (
+                        <div className="mt-2 overflow-hidden rounded-lg bg-gray-100" style={{ height: 200 }}>
+                          {loadScanProductScanner ? (
+                            <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-mainColor border-t-transparent" /></div>}>
+                              <Scanner
+                                onScan={handleScanProductScan}
+                                constraints={{ facingMode: "environment" }}
+                                styles={{
+                                  container: { width: "100%", height: "100%" },
+                                  video: { width: "100%", height: "100%", objectFit: "cover" },
+                                }}
+                              />
+                            </Suspense>
+                          ) : null}
+                        </div>
+                      )}
+                      {showScannerInScanProduct && (
+                        <button type="button" onClick={() => setShowScannerInScanProduct(false)} className="mt-1 text-sm text-gray-500 hover:text-gray-700">
+                          {getWordString(language, "close")}
+                        </button>
+                      )}
+                    </div>
+                    {scanProductError && <p className="mb-2 text-sm text-red-600">{scanProductError}</p>}
+                    <div className="flex gap-2 justify-end">
+                      <button type="button" onClick={closeScanProductModal} className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700">{getWordString(language, "close")}</button>
+                      <button
+                        type="button"
+                        onClick={() => applyScannedBarcode(scanProductBarcode)}
+                        disabled={!scanProductBarcode?.trim()}
+                        className="rounded-lg bg-mainColor px-4 py-2 text-white disabled:opacity-50"
+                      >
+                        {getWordString(language, "scanProductApply")}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </>
       )}
