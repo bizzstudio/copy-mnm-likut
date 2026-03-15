@@ -16,12 +16,12 @@ const TabSwitcher = ({ tabs = [{ id: '', label: '' }], activeTabId, setActiveTab
 
     return (
         <div className={`w-full max-w-[1300px] mx-auto ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}>
-            <div className="relative flex items-start justify-around p-1 bg-gray-200 dark:bg-gray-700 dark:text-white rounded-[9px]">
+            <div className="relative flex items-start justify-around p-0.5 bg-gray-200 dark:bg-gray-700 dark:text-white rounded-[7px]">
                 {/* אינדיקטור */}
                 <div
-                    className="absolute top-[2px] bg-mainColor rounded-[7px] transition-all duration-300 ease-out shadow-md"
+                    className="absolute top-[1px] bg-mainColor rounded-[5px] transition-all duration-300 ease-out shadow-md"
                     style={{
-                        height: 'calc(100% - 4px)',
+                        height: 'calc(100% - 2px)',
                         border: '0.5px solid rgba(0, 0, 0, 0.04)',
                         insetInlineStart: `${activeTabIndex * indicatorWidth}%`,
                         width: `${indicatorWidth}%`,
@@ -33,7 +33,7 @@ const TabSwitcher = ({ tabs = [{ id: '', label: '' }], activeTabId, setActiveTab
                     <button
                         type='button'
                         key={tab.id}
-                        className={`relative flex items-center justify-center w-full h-[28px] text-sm ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} transition-all duration-300 ${effectiveActiveTabId === tab.id
+                        className={`relative flex items-center justify-center w-full h-[22px] text-xs ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} transition-all duration-300 ${effectiveActiveTabId === tab.id
                             ? 'opacity-100 text-white font-bold'
                             : 'opacity-60'
                             }`}

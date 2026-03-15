@@ -1,12 +1,16 @@
 // src/components/OrderPreview/index.jsx
-import React, { useContext, useEffect, useState, useRef } from "react";
+import React, { useContext, useEffect, useState, useRef, lazy, Suspense } from "react";
 import { Table } from "antd";
 import { useNavigate } from "react-router-dom";
 import { languageContext } from "../../App";
-import { getWord } from "../Language";
+import { getWord, getWordString } from "../Language";
 import logo from "../../../public/logo.jpeg";
 import axios from "axios";
-import { FaTimes, FaCheckCircle } from "react-icons/fa";
+import { FaTimes, FaCheckCircle, FaBarcode, FaCamera } from "react-icons/fa";
+
+const Scanner = lazy(() =>
+  import("@yudiel/react-qr-scanner").then((mod) => ({ default: mod.Scanner }))
+);
 
 export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder }) {
     const { language } = useContext(languageContext);
@@ -16,6 +20,14 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
     const [data, setData] = useState([]);
     const [userText, setUserText] = useState("");
     const [maxVisibleItems, setMaxVisibleItems] = useState(0);
+    const [deductModal, setDeductModal] = useState({ open: false, barcode: "", productTitle: "" });
+    const [deductQuantity, setDeductQuantity] = useState("");
+    const [deductSubmitting, setDeductSubmitting] = useState(false);
+    const [deductError, setDeductError] = useState(null);
+    const [showScannerInDeduct, setShowScannerInDeduct] = useState(false);
+    const [loadDeductScanner, setLoadDeductScanner] = useState(false);
+
+    const BASE = import.meta.env.VITE_MAIN_SERVER_URL || "";
 
     const words = {
         name: getWord('name'),
@@ -31,6 +43,11 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
         orderIsCollected: getWord('orderIsCollected'),
         moreItems: getWord('moreItems'),
         totalItems: getWord('totalItems'),
+        scanForPick: getWord('scanForPick'),
+        quantityPicked: getWord('quantityPicked'),
+        deductFromStock: getWord('deductFromStock'),
+        enterBarcode: getWord('enterBarcode'),
+        scanBarcode: getWord('scanBarcode'),
     };
 
     const translateText = async (text) => {
@@ -102,11 +119,15 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
             const visibleCart = order.cart.slice(0, maxVisibleItems);
             setData(
                 visibleCart.sort((a, b) => a.barcode - b.barcode).map((item, index) => {
+                    const barcode = item.barcode || "";
+                    const productTitle = language === "hebrew" ? item.title?.he : item.title?.en;
                     return {
                         key: item._id,
+                        rowBarcode: barcode,
+                        rowTitle: productTitle,
                         name: (
                             <div>
-                                <div>{language === "hebrew" ? item.title.he : item.title.en}</div>
+                                <div>{productTitle}</div>
                                 <div>₪{item.price || item.originalPrice}</div>
                             </div>
                         ),
@@ -115,15 +136,69 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
                                 style={{ width: "60px", height: "60px" }}
                                 className="mx-auto"
                                 src={item.image || logo}
-                                alt={language === "hebrew" ? item.title.he : item.title.en}
+                                alt={productTitle}
                             />
                         ),
                         quantity: item.quantity,
+                        scan: (
+                            <button
+                                type="button"
+                                onClick={() => setDeductModal({ open: true, barcode, productTitle: productTitle || "" })}
+                                className="flex items-center justify-center gap-1 rounded-lg bg-mainColor px-2 py-1.5 text-white text-sm hover:opacity-90"
+                            >
+                                <FaBarcode size={14} />
+                                {words.scanForPick}
+                            </button>
+                        ),
                     };
                 })
             );
         }
     }, [maxVisibleItems, order, language]);
+
+    const handleDeductSubmit = async () => {
+        const barcode = deductModal.barcode?.trim();
+        const qty = parseInt(deductQuantity, 10);
+        if (!barcode || !Number.isFinite(qty) || qty < 1) return;
+        setDeductSubmitting(true);
+        setDeductError(null);
+        try {
+            await axios.patch(
+                `${BASE}/products/barcode/${encodeURIComponent(barcode)}/deduct-stock-app`,
+                { quantity: qty },
+                { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+            );
+            alert(getWordString(language, "stockDeductedSuccess"));
+            setDeductModal({ open: false, barcode: "", productTitle: "" });
+            setDeductQuantity("");
+        } catch (err) {
+            setDeductError(err?.response?.data?.message?.he || err?.response?.data?.message?.en || "שגיאה");
+        } finally {
+            setDeductSubmitting(false);
+        }
+    };
+
+    const closeDeductModal = () => {
+        setDeductModal({ open: false, barcode: "", productTitle: "" });
+        setDeductQuantity("");
+        setDeductError(null);
+        setShowScannerInDeduct(false);
+        setLoadDeductScanner(false);
+    };
+
+    const openDeductScanner = () => {
+        setShowScannerInDeduct(true);
+        setLoadDeductScanner(true);
+    };
+
+    const handleDeductScan = (detectedCodes) => {
+        if (!detectedCodes?.length) return;
+        const barcode = detectedCodes[0]?.rawValue;
+        if (barcode) {
+            setDeductModal((m) => ({ ...m, barcode }));
+            setShowScannerInDeduct(false);
+        }
+    };
 
     const columns = [
         {
@@ -137,6 +212,11 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
         {
             title: words.quantity,
             dataIndex: "quantity",
+        },
+        {
+            title: "",
+            dataIndex: "scan",
+            width: 120,
         },
     ];
 
@@ -219,6 +299,79 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
                     </button>
                 </div>
             </div>
+
+            {/* מודל הורדה ממלאי לכל מוצר */}
+            {deductModal.open && (
+                <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/50 p-4" dir="rtl" onClick={(e) => e.target === e.currentTarget && closeDeductModal()}>
+                    <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="mb-3 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-900">{words.scanForPick}</h3>
+                            <button type="button" onClick={closeDeductModal} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
+                        </div>
+                        {deductModal.productTitle && <p className="mb-2 text-sm text-gray-600 truncate">{deductModal.productTitle}</p>}
+                        <div className="mb-3">
+                            <button
+                                type="button"
+                                onClick={openDeductScanner}
+                                className="w-full flex items-center justify-center gap-2 rounded-lg bg-mainColor py-3 px-4 text-white text-base font-medium hover:opacity-90 mb-2"
+                            >
+                                <FaCamera size={20} />
+                                {words.scanBarcode}
+                            </button>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">{words.enterBarcode}</label>
+                            <input
+                                type="text"
+                                value={deductModal.barcode}
+                                onChange={(e) => setDeductModal((m) => ({ ...m, barcode: e.target.value }))}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+                                dir="ltr"
+                                placeholder="7290000048437"
+                            />
+                            {showScannerInDeduct && (
+                                <div className="mt-2 overflow-hidden rounded-lg bg-gray-100" style={{ height: 200 }}>
+                                    {loadDeductScanner ? (
+                                        <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-mainColor border-t-transparent" /></div>}>
+                                            <Scanner
+                                                onScan={handleDeductScan}
+                                                constraints={{ facingMode: "environment" }}
+                                                styles={{
+                                                    container: { width: "100%", height: "100%" },
+                                                    video: { width: "100%", height: "100%", objectFit: "cover" },
+                                                }}
+                                            />
+                                        </Suspense>
+                                    ) : null}
+                                </div>
+                            )}
+                            {showScannerInDeduct && (
+                                <button type="button" onClick={() => setShowScannerInDeduct(false)} className="mt-1 text-sm text-gray-500 hover:text-gray-700">
+                                    {getWordString(language, "close")}
+                                </button>
+                            )}
+                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{words.quantityPicked}</label>
+                        <input
+                            type="number"
+                            min={1}
+                            value={deductQuantity}
+                            onChange={(e) => setDeductQuantity(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 mb-3 text-gray-900"
+                        />
+                        {deductError && <p className="mb-2 text-sm text-red-600">{deductError}</p>}
+                        <div className="flex gap-2 justify-end">
+                            <button type="button" onClick={closeDeductModal} className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700">{words.close}</button>
+                            <button
+                                type="button"
+                                onClick={handleDeductSubmit}
+                                disabled={deductSubmitting || !deductModal.barcode?.trim() || !deductQuantity || parseInt(deductQuantity, 10) < 1}
+                                className="rounded-lg bg-mainColor px-4 py-2 text-white disabled:opacity-50"
+                            >
+                                {deductSubmitting ? "..." : words.deductFromStock}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 } 

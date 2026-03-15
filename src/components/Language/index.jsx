@@ -53,7 +53,20 @@ const LA = {
     moreItems: "और {count} आइटम...",
     totalItems: "कुल {count} आइटम ऑर्डर में",
     notAllItemsMarked: "ऑर्डर पूरा नहीं किया जा सकता - ऑर्डर समाप्त करने से पहले सभी आइटम को चिह्नित करना होगा और मात्रा की सटीकता सुनिश्चित करना होगा",
-    unmarkAll: "सभी अनचेक करें"
+    unmarkAll: "सभी अनचेक करें",
+    scanBarcode: "סריקת ברקוד",
+    manualBarcodeEntry: "הזנת ברקוד ידנית",
+    enterBarcode: "הזן ברקוד",
+    search: "חפש",
+    quantityInStock: "כמות להוספה במלאי",
+    addToStock: "הוסף למלאי",
+    productNotFoundBarcode: "המוצר עם הברקוד לא נמצא במערכת",
+    scanInstructions: "הצב את הברקוד מול המצלמה",
+    stockAddedSuccess: "המלאי עודכן בהצלחה",
+    scanForPick: "סרוק ליקוט",
+    quantityPicked: "כמות שנלוקטה",
+    deductFromStock: "הורד ממלאי",
+    stockDeductedSuccess: "הורדנו מהמלאי בהצלחה"
   },
   en: {
     image: "Image",
@@ -104,7 +117,20 @@ const LA = {
     moreItems: "and {count} more items...",
     totalItems: "Total {count} items in order",
     notAllItemsMarked: "Cannot complete order - all products must be marked and quantities must be verified before completing the order",
-    unmarkAll: "Unmark All"
+    unmarkAll: "Unmark All",
+    scanBarcode: "Scan barcode",
+    manualBarcodeEntry: "Manual barcode entry",
+    enterBarcode: "Enter barcode",
+    search: "Search",
+    quantityInStock: "Quantity to add to stock",
+    addToStock: "Add to stock",
+    productNotFoundBarcode: "Product with this barcode was not found",
+    scanInstructions: "Position the barcode in front of the camera",
+    stockAddedSuccess: "Stock updated successfully",
+    scanForPick: "Scan for pick",
+    quantityPicked: "Quantity picked",
+    deductFromStock: "Deduct from stock",
+    stockDeductedSuccess: "Deducted from stock successfully"
   },
   hebrew: {
     image: "תמונה",
@@ -117,7 +143,7 @@ const LA = {
     numOfBoxes: "מספר ארגזים",
     back: "אחורה",
     total: "סכום",
-    selfCollected: "ללא משלוח",
+    selfCollected: "קליטת סחורה",
     shipment: "משלוחים",
     choseMelaket: 'בסיום יש לבחור את שם המלקט',
     leaveOrder: "נטישת הזמנה",
@@ -155,7 +181,20 @@ const LA = {
     moreItems: "ועוד {count} מוצרים...",
     totalItems: "סך הכל {count} מוצרים בהזמנה",
     notAllItemsMarked: "לא ניתן לסיים הזמנה - יש לסמן את כל המוצרים ולוודא כמויות מדויקות לפני סיום ההזמנה",
-    unmarkAll: "ביטול הכל"
+    unmarkAll: "ביטול הכל",
+    scanBarcode: "סריקת ברקוד",
+    manualBarcodeEntry: "הזנת ברקוד ידנית",
+    enterBarcode: "הזן ברקוד",
+    search: "חפש",
+    quantityInStock: "כמות להוספה במלאי",
+    addToStock: "הוסף למלאי",
+    productNotFoundBarcode: "המוצר עם הברקוד לא נמצא במערכת",
+    scanInstructions: "הצב את הברקוד מול המצלמה",
+    stockAddedSuccess: "המלאי עודכן בהצלחה",
+    scanForPick: "סרוק מוצר",
+    quantityPicked: "כמות שנלוקטה",
+    deductFromStock: "הורד ממלאי",
+    stockDeductedSuccess: "הורדנו מהמלאי בהצלחה"
   },
 };
 
@@ -163,6 +202,8 @@ export const getWord = (word) => {
   const { language } = useContext(languageContext);
   return <>{LA[language][word]}</>;
 };
+
+export const getWordString = (lang, key) => LA[lang]?.[key] ?? key;
 
 export default function Language({ setOpenMenu }) {
   const { setLanguage } = useContext(languageContext);

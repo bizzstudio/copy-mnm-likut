@@ -10,6 +10,8 @@ import axios from "axios";
 import TabSwitcher from "../TabSwitcher";
 import loginImg from "/loginImg.svg"
 import OrderPreview from "../OrderPreview";
+import BarcodeStockModal from "../BarcodeStockModal";
+import { FiCamera } from "react-icons/fi";
 
 import dayjs from 'dayjs';
 import 'dayjs/locale/he'; // ייבוא תמיכת השפה העברית
@@ -31,6 +33,8 @@ export default function Items({ orders, loading, setLoading, go }) {
   // State for order preview
   const [previewOrder, setPreviewOrder] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isBarcodeStockOpen, setIsBarcodeStockOpen] = useState(false);
+  const [barcodeEntryMode, setBarcodeEntryMode] = useState("scan");
 
   useEffect(() => {
     go();
@@ -148,10 +152,8 @@ export default function Items({ orders, loading, setLoading, go }) {
       })
 
       setShippings((prev) => ({
-        selfCollecting: orders.filter(
-          (order) => order.shippingCost == 0
-        ),
-        deliver: orders.filter((order) => order.shippingCost > 0),
+        selfCollecting: [],
+        deliver: orders,
       }));
 
       if (sessionStorage.getItem("shippingStatus")) {
@@ -226,10 +228,10 @@ export default function Items({ orders, loading, setLoading, go }) {
       ) : (
         <>
           <div className="w-full border-b border-gray-200 pb-2 pt-1 px-2 from-mainColor-light/20 to-white bg-gradient-to-b">
-            <img src={loginImg} alt="לוגו מערכת ליקוט" className="h-[85px] mx-auto" />
+            <img src={loginImg} alt="לוגו מערכת ליקוט" className="h-[150px] mx-auto" />
           </div>
 
-          <div className="sticky top-0 z-10 p-3 border-b border-gray-200 bg-white bg-opacity-90 backdrop-blur-sm">
+          <div className="sticky top-0 z-10 px-3 py-1.5 border-b border-gray-200 bg-white bg-opacity-90 backdrop-blur-sm">
             <TabSwitcher
               tabs={[
                 {
@@ -249,6 +251,27 @@ export default function Items({ orders, loading, setLoading, go }) {
                 setShippingStatus(value);
               }}
             />
+            {shippingStatus === "selfCollecting" && (
+              <div className="mt-24 w-full flex justify-center pb-8">
+                <div className="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setBarcodeEntryMode("scan"); setIsBarcodeStockOpen(true); }}
+                  className="flex items-center gap-2 rounded-full bg-mainColor px-4 py-2 text-white hover:opacity-90"
+                >
+                  <FiCamera size={18} />
+                  {getWord("scanBarcode")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBarcodeEntryMode("manual"); setIsBarcodeStockOpen(true); }}
+                  className="flex items-center gap-2 rounded-full border-2 border-mainColor bg-white px-4 py-2 text-mainColor hover:bg-mainColor/10"
+                >
+                  {getWord("manualBarcodeEntry")}
+                </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="p-3 pb-20 max-w-[1300px] mx-auto">
             {data.length > 0 && <Table
@@ -279,6 +302,13 @@ export default function Items({ orders, loading, setLoading, go }) {
             isOpen={isPreviewOpen}
             onClose={handleClosePreview}
             onContinueToOrder={handleContinueToOrder}
+          />
+
+          <BarcodeStockModal
+            isOpen={isBarcodeStockOpen}
+            onClose={() => setIsBarcodeStockOpen(false)}
+            onSuccess={() => setIsBarcodeStockOpen(false)}
+            entryMode={barcodeEntryMode}
           />
         </>
       )}
