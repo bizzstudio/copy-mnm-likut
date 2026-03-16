@@ -10,7 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@yudiel/react-qr-scanner": "^2.5.1",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.0",
     "antd": "^5.14.0",
     "axios": "^1.6.7",
     "dayjs": "^1.11.12",

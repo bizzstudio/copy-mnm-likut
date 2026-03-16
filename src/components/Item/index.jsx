@@ -1,5 +1,5 @@
 // meshek_Likut_system/src/components/Item/index.jsx
-import React, { useContext, useEffect, useState, lazy, Suspense } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Select, Table } from "antd";
 import Loader from "../Loader";
@@ -8,12 +8,9 @@ import logo from "../../../public/logo.jpeg";
 import { languageContext } from "../../App";
 import "./style.css";
 import { getWord, getWordString } from "../Language";
+import BarcodeScanner from "../BarcodeScanner";
 import { FaCheckCircle, FaBoxOpen, FaPlus, FaMinus, FaCheck, FaBarcode, FaCamera } from "react-icons/fa";
 import { FaXmark } from "react-icons/fa6";
-
-const Scanner = lazy(() =>
-  import("@yudiel/react-qr-scanner").then((mod) => ({ default: mod.Scanner }))
-);
 import spinnerLoadingImage from "/spinner.gif";
 import dayjs from "dayjs";
 import loginImg from "/loginImg.svg"
@@ -164,14 +161,12 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
     setLoadScanProductScanner(true);
   };
 
-  const handleScanProductScan = (detectedCodes) => {
-    if (!detectedCodes?.length) return;
-    const barcode = detectedCodes[0]?.rawValue;
-    if (barcode) {
-      setScanProductBarcode(barcode);
-      setShowScannerInScanProduct(false);
-      applyScannedBarcode(barcode);
-    }
+  const handleScanProductScan = (barcode) => {
+    if (!barcode?.trim()) return;
+    const trimmed = barcode.trim();
+    setScanProductBarcode(trimmed);
+    setShowScannerInScanProduct(false);
+    applyScannedBarcode(trimmed);
   };
 
   const productIdStr = (item) => (item?._id != null ? String(item._id) : null);
@@ -295,16 +290,18 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
       render: (_, record) => (
         <button
           type="button"
+          title={getWordString(language, "scanForPick") || "סרוק מוצר"}
           onClick={() => {
             setScanProductError(null);
             setScanProductBarcode("");
             setScanSuccessItem(null);
             setScanProductModalOpen(true);
+            setShowScannerInScanProduct(true);
+            setLoadScanProductScanner(true);
           }}
-          className="flex items-center justify-center gap-1 rounded-lg bg-mainColor px-2 py-1.5 text-white text-sm hover:opacity-90 w-full"
+          className="flex items-center justify-center rounded-lg bg-mainColor p-2 text-white hover:opacity-90 min-w-[44px]"
         >
-          <FaBarcode size={14} />
-          {getWord('scanForPick')}
+          <FaBarcode size={18} />
         </button>
       ),
     },
@@ -778,10 +775,10 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
                       <button
                         type="button"
                         onClick={openScanProductScanner}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-mainColor py-3 px-4 text-white text-base font-medium hover:opacity-90 mb-2"
+                        className="w-full flex items-center justify-center rounded-lg bg-mainColor py-3 px-4 text-white hover:opacity-90 mb-2 min-h-[48px]"
+                        title={getWordString(language, "scanBarcode")}
                       >
-                        <FaCamera size={20} />
-                        {getWordString(language, "scanBarcode")}
+                        <FaCamera size={24} />
                       </button>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{getWordString(language, "enterBarcode")}</label>
                       <input
@@ -796,16 +793,11 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
                       {showScannerInScanProduct && (
                         <div className="mt-2 overflow-hidden rounded-lg bg-gray-100" style={{ height: 200 }}>
                           {loadScanProductScanner ? (
-                            <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-mainColor border-t-transparent" /></div>}>
-                              <Scanner
-                                onScan={handleScanProductScan}
-                                constraints={{ facingMode: "environment" }}
-                                styles={{
-                                  container: { width: "100%", height: "100%" },
-                                  video: { width: "100%", height: "100%", objectFit: "cover" },
-                                }}
-                              />
-                            </Suspense>
+                            <BarcodeScanner
+                              onScan={handleScanProductScan}
+                              paused={false}
+                              style={{ height: "100%", width: "100%" }}
+                            />
                           ) : null}
                         </div>
                       )}

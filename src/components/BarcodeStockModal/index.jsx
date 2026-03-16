@@ -1,11 +1,8 @@
-import React, { useState, useEffect, useRef, lazy, Suspense, useContext } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { languageContext } from "../../App";
 import { getWord, getWordString } from "../Language";
 import axios from "axios";
-
-const Scanner = lazy(() =>
-  import("@yudiel/react-qr-scanner").then((mod) => ({ default: mod.Scanner }))
-);
+import BarcodeScanner from "../BarcodeScanner";
 
 const BASE = import.meta.env.VITE_MAIN_SERVER_URL || "";
 
@@ -119,11 +116,9 @@ export default function BarcodeStockModal({ isOpen, onClose, onSuccess, entryMod
     }
   };
 
-  const handleScan = async (detectedCodes) => {
-    if (!detectedCodes?.length || loading) return;
-    const barcode = detectedCodes[0]?.rawValue;
-    if (!barcode) return;
-    await fetchProductByBarcode(barcode);
+  const handleScan = (barcode) => {
+    if (loading || !barcode?.trim()) return;
+    fetchProductByBarcode(barcode.trim());
   };
 
   const handleManualSearch = () => {
@@ -422,26 +417,16 @@ export default function BarcodeStockModal({ isOpen, onClose, onSuccess, entryMod
             ) : (
               <>
                 <p className="mb-3 text-center text-gray-600">{getWord("scanInstructions")}</p>
-                <div className="overflow-hidden rounded-lg" style={{ height: 260 }}>
+                <div className="overflow-hidden rounded-lg bg-gray-100" style={{ height: 260 }}>
                   {loadScanner ? (
-                    <Suspense
-                      fallback={
-                        <div className="flex h-full items-center justify-center bg-gray-100">
-                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-mainColor border-t-transparent" />
-                        </div>
-                      }
-                    >
-                      <Scanner
-                        onScan={handleScan}
-                        constraints={{ facingMode: "environment" }}
-                        styles={{
-                          container: { width: "100%", height: "100%" },
-                          video: { width: "100%", height: "100%", objectFit: "cover" },
-                        }}
-                      />
-                    </Suspense>
+                    <BarcodeScanner
+                      onScan={handleScan}
+                      onError={() => setError(t("cameraError"))}
+                      paused={loading}
+                      style={{ height: "100%", width: "100%" }}
+                    />
                   ) : (
-                    <div className="flex h-full items-center justify-center bg-gray-100">
+                    <div className="flex h-full items-center justify-center">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-mainColor border-t-transparent" />
                     </div>
                   )}

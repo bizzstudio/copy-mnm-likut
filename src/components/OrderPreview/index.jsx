@@ -1,16 +1,13 @@
 // src/components/OrderPreview/index.jsx
-import React, { useContext, useEffect, useState, useRef, lazy, Suspense } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import { Table } from "antd";
 import { useNavigate } from "react-router-dom";
 import { languageContext } from "../../App";
 import { getWord, getWordString } from "../Language";
 import logo from "../../../public/logo.jpeg";
 import axios from "axios";
+import BarcodeScanner from "../BarcodeScanner";
 import { FaTimes, FaCheckCircle, FaBarcode, FaCamera } from "react-icons/fa";
-
-const Scanner = lazy(() =>
-  import("@yudiel/react-qr-scanner").then((mod) => ({ default: mod.Scanner }))
-);
 
 export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder }) {
     const { language } = useContext(languageContext);
@@ -181,13 +178,10 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
         setLoadDeductScanner(true);
     };
 
-    const handleDeductScan = (detectedCodes) => {
-        if (!detectedCodes?.length) return;
-        const barcode = detectedCodes[0]?.rawValue;
-        if (barcode) {
-            setDeductModal((m) => ({ ...m, barcode }));
-            setShowScannerInDeduct(false);
-        }
+    const handleDeductScan = (barcode) => {
+        if (!barcode?.trim()) return;
+        setDeductModal((m) => ({ ...m, barcode: barcode.trim() }));
+        setShowScannerInDeduct(false);
     };
 
     const columns = [
@@ -315,16 +309,11 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
                             {showScannerInDeduct && (
                                 <div className="mt-2 overflow-hidden rounded-lg bg-gray-100" style={{ height: 200 }}>
                                     {loadDeductScanner ? (
-                                        <Suspense fallback={<div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-mainColor border-t-transparent" /></div>}>
-                                            <Scanner
-                                                onScan={handleDeductScan}
-                                                constraints={{ facingMode: "environment" }}
-                                                styles={{
-                                                    container: { width: "100%", height: "100%" },
-                                                    video: { width: "100%", height: "100%", objectFit: "cover" },
-                                                }}
-                                            />
-                                        </Suspense>
+                                        <BarcodeScanner
+                                            onScan={handleDeductScan}
+                                            paused={false}
+                                            style={{ height: "100%", width: "100%" }}
+                                        />
                                     ) : null}
                                 </div>
                             )}
