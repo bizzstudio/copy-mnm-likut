@@ -17,23 +17,36 @@ export const SCANNER_FORMATS = [
 export const SCANNER_SCAN_DELAY = 90;
 
 /** נעילה אחרי זיהוי – מונע סריקות כפולות (ms) */
-export const SCANNER_LOCK_AFTER_SCAN_MS = 800;
+export const SCANNER_LOCK_AFTER_SCAN_MS = 600;
 
-/** Debounce לזיהוי (ms) */
-export const SCANNER_DEBOUNCE_MS = 100;
+/** Debounce לזיהוי (ms) – נמוך = תגובה מיידית כמו סורק חנות */
+export const SCANNER_DEBOUNCE_MS = 40;
 
-/** מרווח בין ניסיונות פענוח (ms) – ~20 ניסיונות בשנייה לקצב סריקה מוגבר */
-export const SCANNER_TIME_BETWEEN_DECODING_ATTEMPTS_MS = 50;
+/** מרווח בין ניסיונות פענוח (ms) – איזון בין מהירות ל-TRY_HARDER (ברקודים מקומטים/עם אור) */
+export const SCANNER_TIME_BETWEEN_DECODING_ATTEMPTS_MS = 35;
 
-/** אילוצי מצלמה – מצלמה אחורית. רזולוציה נמוכה יותר לתאימות טובה במובייל/טאבלט */
+/** מרווח בין ניסיונות פענוח מקנבס מעובד (ניגוד/היפוך) – fallback לברקודים עם אור/קימוט */
+export const SCANNER_CANVAS_FALLBACK_INTERVAL_MS = 180;
+
+/** אילוצי מצלמה – רזולוציה מקסימלית + אוטופוקוס לברקודים רחוקים/קטנים */
 export const SCANNER_CONSTRAINTS = {
   facingMode: "environment",
-  width: { ideal: 1280, min: 320 },
-  height: { ideal: 720, min: 240 },
-  frameRate: { ideal: 24, max: 30 },
+  width: { ideal: 2560, min: 1280 },
+  height: { ideal: 1440, min: 720 },
+  frameRate: { ideal: 30, max: 60 },
+  advanced: [{ focusMode: "continuous" }],
 };
 
-/** אילוצים מינימליים – מצלמה אחורית (טאבלט/טלפון) */
+/** רזולוציה בינונית – fallback כשהמכשיר לא תומך ב-FHD+ */
+export const SCANNER_CONSTRAINTS_MID = {
+  facingMode: "environment",
+  width: { ideal: 1920, min: 640 },
+  height: { ideal: 1080, min: 480 },
+  frameRate: { ideal: 30, max: 60 },
+  advanced: [{ focusMode: "continuous" }],
+};
+
+/** אילוצים מינימליים – מצלמה אחורית בלבד (טאבלט/טלפון חלש) */
 export const SCANNER_CONSTRAINTS_MINIMAL = {
   facingMode: "environment",
 };
@@ -41,12 +54,14 @@ export const SCANNER_CONSTRAINTS_MINIMAL = {
 /** מצלמת מחשב (webcam) – למחשבים שולחניים/לפטופ */
 export const SCANNER_CONSTRAINTS_USER = {
   facingMode: "user",
+  width: { ideal: 1920, min: 640 },
+  height: { ideal: 1080, min: 480 },
 };
 
 /** אילוצים עם torch (תאורה) – לשימוש אופציונלי כשהמכשיר תומך */
 export const SCANNER_CONSTRAINTS_WITH_TORCH = {
   ...SCANNER_CONSTRAINTS,
-  advanced: [{ torch: true }],
+  advanced: [{ focusMode: "continuous" }, { torch: true }],
 };
 
 /** סגנונות קונטיינר וידאו */

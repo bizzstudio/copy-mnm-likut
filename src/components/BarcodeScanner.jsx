@@ -7,20 +7,23 @@ import {
   SCANNER_LOCK_AFTER_SCAN_MS,
   SCANNER_DEBOUNCE_MS,
   SCANNER_CONSTRAINTS,
+  SCANNER_CONSTRAINTS_MID,
   SCANNER_CONSTRAINTS_MINIMAL,
   SCANNER_CONSTRAINTS_USER,
   SCANNER_STYLES,
   SCANNER_REGION,
   SCANNER_TIME_BETWEEN_DECODING_ATTEMPTS_MS,
+  SCANNER_CANVAS_FALLBACK_INTERVAL_MS,
 } from "../utils/scannerConfig";
 
-// 🔹 HINTS לשיפור זיהוי ברקודים קטנים/מטושטשים
+// 🔹 HINTS – מקסימום זיהוי: רחוקים, קטנים, מקומטים, מטושטשים, אור/סינוור (בלי PURE_BARCODE – מזיק כשברקוד קטן במסגרת)
 const HINTS = (() => {
   const hints = new Map();
   const formats = SCANNER_FORMATS.map((name) => BarcodeFormat[name]).filter(Boolean);
   if (formats.length) hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
   if (DecodeHintType.TRY_HARDER !== undefined) hints.set(DecodeHintType.TRY_HARDER, true);
   if (DecodeHintType.ALSO_INVERTED !== undefined) hints.set(DecodeHintType.ALSO_INVERTED, true);
+  if (DecodeHintType.ASSUME_GS1 !== undefined) hints.set(DecodeHintType.ASSUME_GS1, true);
   return hints;
 })();
 
@@ -39,6 +42,51 @@ function useDebouncedCallback(callback, delay) {
     },
     [delay]
   );
+}
+
+// 🔹 עיבוד קנבס לשיפור זיהוי: אור חזק, צל, קימוט – מתיחת ניגוד ו/או היפוך
+function drawVideoToCanvas(canvas, video) {
+  if (!video?.videoWidth || !video?.videoHeight) return false;
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return false;
+  ctx.drawImage(video, 0, 0, w, h);
+  return true;
+}
+
+function applyContrastStretch(ctx, w, h) {
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  let minL = 255;
+  let maxL = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const L = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0;
+    if (L < minL) minL = L;
+    if (L > maxL) maxL = L;
+  }
+  const range = maxL - minL || 1;
+  for (let i = 0; i < data.length; i += 4) {
+    const L = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0;
+    const v = Math.max(0, Math.min(255, ((L - minL) / range) * 255)) | 0;
+    data[i] = data[i + 1] = data[i + 2] = v;
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function applyInvert(ctx, w, h) {
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 255 - data[i];
+    data[i + 1] = 255 - data[i + 1];
+    data[i + 2] = 255 - data[i + 2];
+  }
+  ctx.putImageData(imageData, 0, 0);
 }
 
 // 🔹 צליל קצר בסריקה מוצלחת
@@ -73,10 +121,16 @@ export default function BarcodeScanner({
   const restartTimeoutRef = useRef(null);
   const startScanningRef = useRef(null);
   const lockedUntilRef = useRef(0);
+  const canvasRef = useRef(null);
+  const canvasFallbackIntervalRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
 
   const stopScanning = useCallback(() => {
     if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+    if (canvasFallbackIntervalRef.current) {
+      clearInterval(canvasFallbackIntervalRef.current);
+      canvasFallbackIntervalRef.current = null;
+    }
     try { controlsRef.current?.stop(); } catch (_) {}
     controlsRef.current = null;
     try { readerRef.current?.releaseAllStreams(); } catch (_) {}
@@ -145,6 +199,7 @@ export default function BarcodeScanner({
 
     tryDecode(SCANNER_CONSTRAINTS)
       .then((c) => { controlsRef.current = c; })
+      .catch(() => tryDecode(SCANNER_CONSTRAINTS_MID).then((c) => { controlsRef.current = c; }))
       .catch(() => tryDecode(SCANNER_CONSTRAINTS_MINIMAL).then((c) => { controlsRef.current = c; }))
       .catch(() => tryDecode(SCANNER_CONSTRAINTS_USER).then((c) => { controlsRef.current = c; }))
       .catch(setError);
@@ -152,15 +207,47 @@ export default function BarcodeScanner({
 
   startScanningRef.current = startScanning;
 
+  // 🔹 Fallback: פענוח מקנבס מעובד (ניגוד + היפוך) – לברקודים עם אור/קימוט/סינוור
+  const runCanvasFallbackTick = useCallback(() => {
+    const video = videoRef.current;
+    const reader = readerRef.current;
+    if (!video || !reader || !controlsRef.current || video.videoWidth === 0) return;
+    if (Date.now() < lockedUntilRef.current) return;
+    let canvas = canvasRef.current;
+    if (!canvas) canvasRef.current = canvas = document.createElement("canvas");
+    if (!drawVideoToCanvas(canvas, video)) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    try {
+      applyContrastStretch(ctx, w, h);
+      const result = reader.decodeFromCanvas(canvas);
+      if (result?.getText) {
+        debouncedHandleResult(result.getText());
+        return;
+      }
+    } catch (_) {}
+    try {
+      applyInvert(ctx, w, h);
+      const result = reader.decodeFromCanvas(canvas);
+      if (result?.getText) debouncedHandleResult(result.getText());
+    } catch (_) {}
+  }, [debouncedHandleResult]);
+
   useEffect(() => {
     if (paused) { stopScanning(); return; }
     const timer = setTimeout(startScanning, 200);
+    const fallbackId = setInterval(runCanvasFallbackTick, SCANNER_CANVAS_FALLBACK_INTERVAL_MS);
+    canvasFallbackIntervalRef.current = fallbackId;
     return () => {
       clearTimeout(timer);
+      clearInterval(fallbackId);
+      canvasFallbackIntervalRef.current = null;
       stopScanning();
       if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
     };
-  }, [paused, startScanning, stopScanning]);
+  }, [paused, startScanning, stopScanning, runCanvasFallbackTick]);
 
   const { x, y, width, height } = SCANNER_REGION;
 
