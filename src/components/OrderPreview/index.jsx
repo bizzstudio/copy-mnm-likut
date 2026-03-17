@@ -200,13 +200,14 @@ export default function OrderPreview({ order, isOpen, onClose, onContinueToOrder
     ];
 
     const handleContinueToOrder = () => {
-        if (
-            order.status.name !== 'Likut' ||
-            order?.actualMelaket?._id === localStorage.melaketId
-        ) {
+        const melaketId = order?.actualMelaket?._id ?? order?.actualMelaket;
+        const isTakenByOther = order.status.name === 'Likut' && melaketId && String(melaketId) !== String(localStorage.melaketId);
+        if (!isTakenByOther) {
             onContinueToOrder();
         } else {
-            alert(`${words.orderIsCollected.props.children} ${language === 'hebrew' ? order.actualMelaket?.heName : order.actualMelaket?.name}`);
+            const m = order.actualMelaket;
+            const melaketName = (language === 'hebrew' ? (m?.heName || m?.name) : (m?.name || m?.heName)) || 'מלקט אחר';
+            alert(`${words.orderIsCollected.props.children} ${melaketName}`);
         }
     };
 

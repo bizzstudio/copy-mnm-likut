@@ -368,18 +368,14 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
             },
           }
         ))().catch(err => {
-          // console.log(err);
           setLoading(false);
           if (order.actualMelaket?._id !== localStorage.melaketId) {
-            // הודעה שההזמנה כבר נתפסה
             const msgToAlert = orderAlreadyTaken.props.children;
             alert(msgToAlert);
             nav("../items");
-            // reload the page:
             window.location.reload();
-          } else if (err.response.status === 409) {
-            // ההזמנה כבר הושלמה
-            alert(err.response.data.message[language]);
+          } else if (err.response?.status === 409) {
+            alert(err.response.data?.message?.[language] || err.response.data?.message || '');
             nav("../items");
           }
         })
@@ -404,19 +400,7 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
     getAllStatuses();
   }, []);
 
-  const rowClassName = (record, index) => {
-    const quantity = data[index].quantity;
-    if (quantity === 2) {
-      return "t_yalow"; // צהוב
-    } else if (quantity === 3) {
-      return "t_orange"; // כתום
-    } else if (quantity === 4) {
-      return "t_dark_orange"; // כתום כהה
-    } else if (quantity >= 5) {
-      return "t_light_red"; // אדום בהיר
-    }
-    return "";
-  };
+  const rowClassName = () => "";
 
   useEffect(() => {
     if (order) {

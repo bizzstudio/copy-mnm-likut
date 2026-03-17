@@ -1,4 +1,7 @@
-// src/components/BarcodeScanner.jsx
+/**
+ * BarcodeScanner – סורק ברקוד מהמצלמה עם fallback לעיבוד תמונה.
+ * מתאים לברקודים מטושטשים, עם אור/סינוור, מקומטים או ברקוד לבן על רקע כהה.
+ */
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
@@ -10,10 +13,13 @@ import {
   SCANNER_CONSTRAINTS_MID,
   SCANNER_CONSTRAINTS_MINIMAL,
   SCANNER_CONSTRAINTS_USER,
+  SCANNER_CONSTRAINTS_USER_MINIMAL,
   SCANNER_STYLES,
   SCANNER_REGION,
   SCANNER_TIME_BETWEEN_DECODING_ATTEMPTS_MS,
   SCANNER_CANVAS_FALLBACK_INTERVAL_MS,
+  SCANNER_GLARE_CAP_LUMINANCE,
+  SCANNER_SHARPEN_STRENGTH,
 } from "../utils/scannerConfig";
 
 // 🔹 HINTS – מקסימום זיהוי: רחוקים, קטנים, מקומטים, מטושטשים, אור/סינוור (בלי PURE_BARCODE – מזיק כשברקוד קטן במסגרת)
@@ -44,7 +50,21 @@ function useDebouncedCallback(callback, delay) {
   );
 }
 
-// 🔹 עיבוד קנבס לשיפור זיהוי: אור חזק, צל, קימוט – מתיחת ניגוד ו/או היפוך
+// --- עיבוד תמונה לקנבס: סינוור, טשטוש, צל ---
+
+const LUM_R = 0.299;
+const LUM_G = 0.587;
+const LUM_B = 0.114;
+
+function getLuminance(data, i) {
+  return (LUM_R * data[i] + LUM_G * data[i + 1] + LUM_B * data[i + 2]) | 0;
+}
+
+function setLuminance(data, i, L) {
+  const v = Math.max(0, Math.min(255, L)) | 0;
+  data[i] = data[i + 1] = data[i + 2] = v;
+}
+
 function drawVideoToCanvas(canvas, video) {
   if (!video?.videoWidth || !video?.videoHeight) return false;
   const w = video.videoWidth;
@@ -59,22 +79,67 @@ function drawVideoToCanvas(canvas, video) {
   return true;
 }
 
+/** מתיחת ניגוד (0–255) – משפר צל ואור חלש */
 function applyContrastStretch(ctx, w, h) {
   const imageData = ctx.getImageData(0, 0, w, h);
   const data = imageData.data;
   let minL = 255;
   let maxL = 0;
   for (let i = 0; i < data.length; i += 4) {
-    const L = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0;
+    const L = getLuminance(data, i);
     if (L < minL) minL = L;
     if (L > maxL) maxL = L;
   }
   const range = maxL - minL || 1;
   for (let i = 0; i < data.length; i += 4) {
-    const L = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) | 0;
-    const v = Math.max(0, Math.min(255, ((L - minL) / range) * 255)) | 0;
-    data[i] = data[i + 1] = data[i + 2] = v;
+    const L = getLuminance(data, i);
+    setLuminance(data, i, ((L - minL) / range) * 255);
   }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+/** הגבלת בוהק – מפחית סינוור על הברקוד */
+function applyHighlightCap(ctx, w, h, cap = SCANNER_GLARE_CAP_LUMINANCE) {
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const L = getLuminance(data, i);
+    if (L > cap) {
+      const scale = cap / L;
+      setLuminance(data, i, L * scale);
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+/** חידוד (Unsharp-style) – משפר ברקוד מטושטש בגלל אור/תנועה */
+function applySharpen(ctx, w, h, strength = SCANNER_SHARPEN_STRENGTH) {
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  const out = new Uint8ClampedArray(data.length);
+  out.set(data);
+  const w4 = w * 4;
+  // kernel: 0 -1 0 / -1 5 -1 / 0 -1 0 (scaled)
+  const k = strength;
+  const kCenter = 1 + 4 * k;
+  const kSide = -k;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      const L = (getLuminance(data, i - w4 - 4) * kSide +
+        getLuminance(data, i - w4) * kSide +
+        getLuminance(data, i - w4 + 4) * kSide +
+        getLuminance(data, i - 4) * kSide +
+        getLuminance(data, i) * kCenter +
+        getLuminance(data, i + 4) * kSide +
+        getLuminance(data, i + w4 - 4) * kSide +
+        getLuminance(data, i + w4) * kSide +
+        getLuminance(data, i + w4 + 4) * kSide) | 0;
+      const v = Math.max(0, Math.min(255, L)) | 0;
+      out[i] = out[i + 1] = out[i + 2] = v;
+    }
+  }
+  imageData.data.set(out);
   ctx.putImageData(imageData, 0, 0);
 }
 
@@ -89,8 +154,8 @@ function applyInvert(ctx, w, h) {
   ctx.putImageData(imageData, 0, 0);
 }
 
-// 🔹 צליל קצר בסריקה מוצלחת
-function playScanSuccessBeep() {
+/** צליל + רטט קצר בסריקה מוצלחת (במכשירים שתומכים) */
+function playScanSuccessFeedback() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -104,6 +169,7 @@ function playScanSuccessBeep() {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.1);
   } catch (_) {}
+  try { navigator.vibrate?.(50); } catch (_) {}
 }
 
 export default function BarcodeScanner({
@@ -118,15 +184,14 @@ export default function BarcodeScanner({
   const videoRef = useRef(null);
   const readerRef = useRef(null);
   const controlsRef = useRef(null);
-  const restartTimeoutRef = useRef(null);
   const startScanningRef = useRef(null);
   const lockedUntilRef = useRef(0);
   const canvasRef = useRef(null);
   const canvasFallbackIntervalRef = useRef(null);
   const [cameraError, setCameraError] = useState(null);
+  const [cameraReady, setCameraReady] = useState(false);
 
   const stopScanning = useCallback(() => {
-    if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
     if (canvasFallbackIntervalRef.current) {
       clearInterval(canvasFallbackIntervalRef.current);
       canvasFallbackIntervalRef.current = null;
@@ -148,7 +213,7 @@ export default function BarcodeScanner({
       if (!barcode) return;
       if (Date.now() < lockedUntilRef.current) return;
       lockedUntilRef.current = Date.now() + SCANNER_LOCK_AFTER_SCAN_MS;
-      if (playSoundOnScan) playScanSuccessBeep();
+      if (playSoundOnScan) playScanSuccessFeedback();
       onScan(barcode);
     },
     [onScan, playSoundOnScan]
@@ -165,87 +230,121 @@ export default function BarcodeScanner({
     }
     readerRef.current = reader;
 
+    const onDecodeResult = (result, err, controls) => {
+      if (controls) controlsRef.current = controls;
+      if (err) return;
+      if (result?.getText) debouncedHandleResult(result.getText());
+    };
+
     const tryDecode = async (constraints) => {
       const controls = await reader.decodeFromConstraints(
         { video: constraints },
         videoRef.current,
-        (result, err, controls) => {
-          if (controls) controlsRef.current = controls;
-          if (err) return;
-          if (result?.getText) debouncedHandleResult(result.getText());
-        }
+        onDecodeResult
       );
-
-      // Torch אם מבוקש ותומך
       if (enableTorch && videoRef.current?.srcObject) {
         const track = videoRef.current.srcObject.getVideoTracks()[0];
-        if (track?.applyConstraints) {
-          const capabilities = track.getCapabilities();
-          if (capabilities.torch) {
-            try { track.applyConstraints({ advanced: [{ torch: true }] }); } catch (_) {}
-          }
+        const caps = track?.getCapabilities?.();
+        if (caps?.torch) {
+          try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch (_) {}
         }
       }
       return controls;
     };
 
     const setError = (err) => {
-      const msg = err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
-        ? "cameraPermissionDenied"
-        : err?.message || "cameraError";
+      const msg =
+        err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
+          ? "cameraPermissionDenied"
+          : err?.message || "cameraError";
       setCameraError(msg);
-      if (onError) onError(err);
+      onError?.(err);
     };
 
+    const assignControls = (c) => { controlsRef.current = c; };
     tryDecode(SCANNER_CONSTRAINTS)
-      .then((c) => { controlsRef.current = c; })
-      .catch(() => tryDecode(SCANNER_CONSTRAINTS_MID).then((c) => { controlsRef.current = c; }))
-      .catch(() => tryDecode(SCANNER_CONSTRAINTS_MINIMAL).then((c) => { controlsRef.current = c; }))
-      .catch(() => tryDecode(SCANNER_CONSTRAINTS_USER).then((c) => { controlsRef.current = c; }))
+      .then(assignControls)
+      .catch(() => tryDecode(SCANNER_CONSTRAINTS_MID).then(assignControls))
+      .catch(() => tryDecode(SCANNER_CONSTRAINTS_MINIMAL).then(assignControls))
+      .catch(() => tryDecode(SCANNER_CONSTRAINTS_USER).then(assignControls))
+      .catch(() => tryDecode(SCANNER_CONSTRAINTS_USER_MINIMAL).then(assignControls))
       .catch(setError);
   }, [paused, debouncedHandleResult, enableTorch, onError]);
 
   startScanningRef.current = startScanning;
 
-  // 🔹 Fallback: פענוח מקנבס מעובד (ניגוד + היפוך) – לברקודים עם אור/קימוט/סינוור
+  /** ניסיון פענוח מקנבס; מחזיר טקסט אם הצליח */
+  const tryDecodeFromCanvas = useCallback(
+    (reader, canvas) => {
+      try {
+        const result = reader.decodeFromCanvas(canvas);
+        return result?.getText ? String(result.getText()).trim() : null;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
+  /** Fallback: כמה צינורות עיבוד – ניגוד, חידוד, הגבלת בוהק, היפוך – לברקוד מטושטש/עם אור */
   const runCanvasFallbackTick = useCallback(() => {
     const video = videoRef.current;
     const reader = readerRef.current;
     if (!video || !reader || !controlsRef.current || video.videoWidth === 0) return;
     if (Date.now() < lockedUntilRef.current) return;
+
     let canvas = canvasRef.current;
     if (!canvas) canvasRef.current = canvas = document.createElement("canvas");
     if (!drawVideoToCanvas(canvas, video)) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const w = canvas.width;
     const h = canvas.height;
-    try {
-      applyContrastStretch(ctx, w, h);
-      const result = reader.decodeFromCanvas(canvas);
-      if (result?.getText) {
-        debouncedHandleResult(result.getText());
+
+    const pipelines = [
+      () => { applyContrastStretch(ctx, w, h); },
+      () => { applyContrastStretch(ctx, w, h); applySharpen(ctx, w, h); },
+      () => { applyHighlightCap(ctx, w, h); applyContrastStretch(ctx, w, h); },
+      () => { applyHighlightCap(ctx, w, h); applyContrastStretch(ctx, w, h); applySharpen(ctx, w, h); },
+      () => { applyContrastStretch(ctx, w, h); applyInvert(ctx, w, h); },
+      () => { applyContrastStretch(ctx, w, h); applyInvert(ctx, w, h); applySharpen(ctx, w, h); },
+    ];
+
+    for (const runPipeline of pipelines) {
+      if (!drawVideoToCanvas(canvas, video)) break;
+      runPipeline();
+      const text = tryDecodeFromCanvas(reader, canvas);
+      if (text) {
+        debouncedHandleResult(text);
         return;
       }
-    } catch (_) {}
-    try {
-      applyInvert(ctx, w, h);
-      const result = reader.decodeFromCanvas(canvas);
-      if (result?.getText) debouncedHandleResult(result.getText());
-    } catch (_) {}
-  }, [debouncedHandleResult]);
+    }
+  }, [debouncedHandleResult, tryDecodeFromCanvas]);
 
   useEffect(() => {
-    if (paused) { stopScanning(); return; }
+    if (paused) {
+      setCameraReady(false);
+      stopScanning();
+      return;
+    }
+    setCameraReady(false);
     const timer = setTimeout(startScanning, 200);
     const fallbackId = setInterval(runCanvasFallbackTick, SCANNER_CANVAS_FALLBACK_INTERVAL_MS);
     canvasFallbackIntervalRef.current = fallbackId;
+    const readyCheckId = setInterval(() => {
+      if (videoRef.current?.videoWidth > 0) {
+        setCameraReady(true);
+        clearInterval(readyCheckId);
+      }
+    }, 150);
     return () => {
       clearTimeout(timer);
       clearInterval(fallbackId);
+      clearInterval(readyCheckId);
       canvasFallbackIntervalRef.current = null;
+      setCameraReady(false);
       stopScanning();
-      if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
     };
   }, [paused, startScanning, stopScanning, runCanvasFallbackTick]);
 
@@ -253,7 +352,18 @@ export default function BarcodeScanner({
 
   return (
     <div className={className} style={{ position: "relative", ...SCANNER_STYLES.container, ...style }}>
-      <video ref={videoRef} muted playsInline autoPlay style={SCANNER_STYLES.video} />
+      <video ref={videoRef} muted playsInline autoPlay style={SCANNER_STYLES.video} aria-label="תצוגת מצלמה לסריקת ברקוד" />
+      {!cameraError && !cameraReady && (
+        <div
+          style={{
+            position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: 14,
+          }}
+          aria-live="polite"
+        >
+          מפעיל מצלמה…
+        </div>
+      )}
       <div
         style={{
           position: "absolute",
@@ -274,7 +384,7 @@ export default function BarcodeScanner({
           gap: 12, background: "rgba(0,0,0,0.6)", color: "#fff", padding: 16, textAlign: "center", fontSize: 14
         }}>
           <span>{cameraError === "cameraPermissionDenied" ? "נא לאפשר גישה למצלמה בהגדרות הדפדפן" : "שגיאה בהפעלת המצלמה. בדוק הרשאות או נסה מכשיר אחר."}</span>
-          <button type="button" onClick={() => { setCameraError(null); stopScanning(); setTimeout(() => startScanningRef.current?.(), 150); }} className="rounded-lg bg-white px-4 py-2 text-gray-800 font-medium">
+          <button type="button" onClick={() => { setCameraError(null); setCameraReady(false); stopScanning(); setTimeout(() => startScanningRef.current?.(), 150); }} className="rounded-lg bg-white px-4 py-2 text-gray-800 font-medium">
             נסה שוב
           </button>
         </div>

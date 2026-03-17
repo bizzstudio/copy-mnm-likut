@@ -45,11 +45,13 @@ function App() {
         },
       });
       console.log('res.data: ', res.data);
-      if (res?.data?.orders && res?.data?.orders.length > 0)
-        setOrders(res?.data?.orders);
-      else {
-        setOrders([]);
-      }
+      // מציגים הזמנות בליקוט או בהעברה לליקוט (לא "בטיפול" בלבד)
+      const allOrders = res?.data?.orders ?? [];
+      const forLikut = allOrders.filter((o) => {
+        const name = o?.status?.name;
+        return name === "Likut" || (name && /^TransferToLikut$/i.test(name));
+      });
+      setOrders(forLikut);
     } catch (error) {
       // if error is 401 navigate to login
       if (error.response.status === 401) {

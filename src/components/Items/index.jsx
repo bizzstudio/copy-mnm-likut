@@ -209,13 +209,14 @@ export default function Items({ orders, loading, setLoading, go }) {
 
   const handleContinueToOrder = () => {
     if (previewOrder) {
-      if (
-        previewOrder.status.name !== 'Likut' ||
-        previewOrder?.actualMelaket?._id === localStorage.melaketId
-      ) {
+      const melaketId = previewOrder?.actualMelaket?._id ?? previewOrder?.actualMelaket;
+      const isTakenByOther = previewOrder.status.name === 'Likut' && melaketId && String(melaketId) !== String(localStorage.melaketId);
+      if (!isTakenByOther) {
         nav("../items/" + previewOrder.invoice);
       } else {
-        alert(`${orderIsCollected} ${language === 'hebrew' ? previewOrder.actualMelaket?.heName : previewOrder.actualMelaket?.name}`);
+        const m = previewOrder.actualMelaket;
+        const melaketName = (language === 'hebrew' ? (m?.heName || m?.name) : (m?.name || m?.heName)) || 'מלקט אחר';
+        alert(`${orderIsCollected} ${melaketName}`);
       }
     }
     handleClosePreview();
@@ -277,14 +278,14 @@ export default function Items({ orders, loading, setLoading, go }) {
             {data.length > 0 && <Table
               onRow={(record, rowIndex) => ({
                 onClick: (event) => {
-                  if (
-                    data[rowIndex].status.name != 'Likut' ||
-                    data[rowIndex]?.actualMelaket?._id == localStorage.melaketId
-                  ) {
+                  const melaketId = data[rowIndex]?.actualMelaket?._id ?? data[rowIndex]?.actualMelaket;
+                  const isTakenByOther = data[rowIndex].status.name === 'Likut' && melaketId && String(melaketId) !== String(localStorage.melaketId);
+                  if (!isTakenByOther) {
                     handleRowClick(record, rowIndex);
                   } else {
-                    // הצגת הודעת האזהרה אם ההזמנה בליקוט על ידי מלקט
-                    alert(`${orderIsCollected} ${language == 'hebrew' ? record.actualMelaket?.heName : record.actualMelaket?.name}`);
+                    const m = record.actualMelaket;
+                    const melaketName = (language === 'hebrew' ? (m?.heName || m?.name) : (m?.name || m?.heName)) || 'מלקט אחר';
+                    alert(`${orderIsCollected} ${melaketName}`);
                   }
                 },
                 ...onRowStyle(record, rowIndex)
