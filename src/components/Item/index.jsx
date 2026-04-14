@@ -611,28 +611,48 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
         return;
       }
 
-      // שליחת נתוני ההזמנה לשרת וואטסאפ (לא מפיל את ה-flow אם נכשל)
+      // שליחת נתוני ההזמנה לוואטסאפ ולמייל (אותה תבנית; לא מפיל את ה-flow אם נכשל)
+      const orderReadyPayload = {
+        date: order.createdAt,
+        userFirstName: order?.user_info?.name,
+        userLastName: order?.user_info?.lastName,
+        userPhone: order?.user_info?.contact,
+        orderInvoice: order.invoice,
+        total: order.total,
+        shipping: order.shippingCost,
+        notes: userText,
+        melaketName: fullValue?.heName,
+        melaketPhone: fullValue?.phone,
+        tracking_link: result?.data?.lionwheelResponse?.tracking_link,
+      };
+      const kirshnerBase = import.meta.env.VITE_KIRSHNER_WHATSAPP_SERVER_URL;
+      const kirshnerHeaders = {
+        headers: { "x-api-key": import.meta.env.VITE_KIRSHNER_WHATSAPP_API_KEY },
+      };
+      const mainApi = import.meta.env.VITE_MAIN_SERVER_URL;
+      const appAuthHeaders = {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      };
       try {
-        await axios.post(
-          `${import.meta.env.VITE_KIRSHNER_WHATSAPP_SERVER_URL}/send-order-ready`,
-          {
-            date: order.createdAt,
-            userFirstName: order?.user_info?.name,
-            userLastName: order?.user_info?.lastName,
-            userPhone: order?.user_info?.contact,
-            orderInvoice: order.invoice,
-            total: order.total,
-            shipping: order.shippingCost,
-            notes: userText,
-            melaketName: fullValue?.heName,
-            melaketPhone: fullValue?.phone,
-            tracking_link: result?.data?.lionwheelResponse?.tracking_link,
-          },
-          {
-            headers: { "x-api-key": import.meta.env.VITE_KIRSHNER_WHATSAPP_API_KEY },
-          }
-        );
+        const settled = await Promise.allSettled([
+          axios.post(
+            `${kirshnerBase}/send-order-ready`,
+            orderReadyPayload,
+            kirshnerHeaders
+          ),
+          axios.post(
+            `${mainApi}/app/orders/send-order-ready-email`,
+            { ...orderReadyPayload, to: "EXECUTIVE@nmplus.co.il" },
+            appAuthHeaders
+          ),
+        ]);
+        const failed = settled.filter((r) => r.status === "rejected");
+        if (failed.length) {
+          console.error("order-ready notifications:", failed.map((r) => r.reason));
+          alert(errorSendingMessage.props.children);
+        }
       } catch (error) {
+        console.error(error);
         alert(errorSendingMessage.props.children);
       }
 
