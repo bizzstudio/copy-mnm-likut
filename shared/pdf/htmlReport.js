@@ -9,18 +9,45 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+const RTL_STYLES = `
+  body {
+    direction: rtl;
+    text-align: right;
+    font-family: Arial, "Noto Sans Hebrew", "Segoe UI", sans-serif;
+    padding: 16px;
+    margin: 0;
+  }
+  * {
+    unicode-bidi: bidi-override;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 11px; }
+  th, td { border: 1px solid #333; padding: 6px; text-align: right; vertical-align: top; }
+  th { background: #f0f0f0; }
+  .meta { color: #444; font-size: 13px; }
+  .note { font-size: 12px; color: #333; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+`;
+
 /**
- * HTML להדפסה / "שמירה כ־PDF" מהדפדפן — עברית RTL, ללא ספריית PDF.
+ * HTML להדפסה / יצוא PDF (דרך דפדפן headless) — עברית RTL.
  */
 export function buildPrintHtml(schema, data) {
   const layout = layoutFormForPdf(schema, data);
   if (layout.error) {
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body>${escapeHtml(layout.error)}</body></html>`;
+    return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <title>שגיאה</title>
+  <style>${RTL_STYLES}</style>
+</head>
+<body>${escapeHtml(layout.error)}</body>
+</html>`;
   }
   const chunks = [];
   for (const s of layout.sections || []) {
     if (s.type === "title") {
-      chunks.push(`<h1 style="font-size:18px">${escapeHtml(s.text)}</h1>`);
+      chunks.push(`<h1>${escapeHtml(s.text)}</h1>`);
     } else if (s.type === "meta") {
       chunks.push(`<div class="meta">${escapeHtml(s.text)}</div>`);
     } else if (s.type === "note") {
@@ -36,9 +63,7 @@ export function buildPrintHtml(schema, data) {
         chunks.push("<tr>");
         const tag = i === 0 ? "th" : "td";
         for (const cell of rows[i]) {
-          chunks.push(
-            `<${tag} style="vertical-align:top">${escapeHtml(cell)}</${tag}>`
-          );
+          chunks.push(`<${tag}>${escapeHtml(cell)}</${tag}>`);
         }
         chunks.push("</tr>");
       }
@@ -56,22 +81,14 @@ export function buildPrintHtml(schema, data) {
   }
   const body = chunks.join("\n");
   return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8"/>
   <title>${escapeHtml(schema.title || "טופס")}</title>
-  <style>
-    body { font-family: Arial, "Segoe UI", Tahoma, sans-serif; padding: 16px; }
-    table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 11px; }
-    th, td { border: 1px solid #333; padding: 6px; text-align: right; }
-    th { background: #f0f0f0; }
-    .meta { color: #444; font-size: 13px; }
-    .note { font-size: 12px; color: #333; }
-  </style>
+  <style>${RTL_STYLES}</style>
 </head>
 <body>
 ${body}
-<script>window.onload=function(){/* window.print(); */}</script>
 </body>
 </html>`;
 }
