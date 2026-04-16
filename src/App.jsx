@@ -8,6 +8,9 @@ import PrivateRoute from "./components/PrivateRoute";
 import Items from "./components/Items";
 import Item from "./components/Item";
 import Header from "./components/Header";
+import FormT01 from "./components/forms/FormT01";
+import FormT03 from "./components/forms/FormT03";
+import FormT02 from "./components/forms/FormT02";
 
 export const languageContext = createContext()
 function App() {
@@ -81,7 +84,8 @@ function App() {
 
   return (
     <languageContext.Provider value={{ language, setLanguage }}>
-      {location.pathname.includes("items") && (
+      {(location.pathname.includes("items") ||
+        location.pathname.startsWith("/forms")) && (
         <Header id={id} go={go} loading={loading} setLoading={setLoading} orders={orders} />
       )}
       <main className="main">
@@ -107,6 +111,30 @@ function App() {
                   loading={loading}
                   setLoading={setLoading}
                 />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/forms/t01"
+            element={
+              <PrivateRoute>
+                <FormT01 />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/forms/t03"
+            element={
+              <PrivateRoute>
+                <FormT03 />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/forms/t02"
+            element={
+              <PrivateRoute>
+                <FormT02 />
               </PrivateRoute>
             }
           />

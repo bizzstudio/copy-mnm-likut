@@ -90,7 +90,28 @@ const LA = {
     salePrice: "מחיר מכירה",
     purchasePrice: "מחיר קניה (מחסן)",
     productCreatedSuccess: "המוצר נוצר בהצלחה ונוסף למוצרים",
-    createProduct: "צור מוצר"
+    createProduct: "צור מוצר",
+    digitalForms: "फॉर्म",
+    chooseDigitalForm: "डिजिटल फॉर्म चुनें",
+    digitalForm1: "T01 — सफाई व अवसंरचना निरीक्षण",
+    digitalForm2: "T03 — दोष रजिस्टर",
+    digitalForm3: "T02 — माल प्राप्ति लॉग",
+    saveDigitalForm: "सहेजें",
+    digitalFormSaved: "फॉर्म सहेजा गया।",
+    digitalFormSaveError: "सहेजने में त्रुटि।",
+    formT01RequiredDateSignature: "कृपया निरीक्षण तिथि और हस्ताक्षर भरें।",
+    savingDigitalForm: "सहेज रहे हैं…",
+    signatureClear: "साफ़ करें",
+    signatureHint: "उंगली या माउस से यहाँ हस्ताक्षर करें",
+    digitalSignatureLabel: "डिजिटल हस्ताक्षर",
+    formT03CompleteRows:
+      "तारीख़, विवरण भरें और हस्ताक्षर करें (एक रिपोर्ट प्रति सबमिशन)।",
+    formT03DrawSignature: "कृपया हस्ताक्षर बनाएँ।",
+    formT03ConfirmSignature: "हस्ताक्षर लागू करें",
+    formT03SignRow: "हस्ताक्षर",
+    formT03RowWord: "पंक्ति",
+    formT02CompleteFields:
+      "दिनांक, समय, उत्पाद नाम, प्राप्तकर्ता का नाम भरें और हस्ताक्षर करें।"
   },
   en: {
     image: "Image",
@@ -178,7 +199,28 @@ const LA = {
     salePrice: "Sale price",
     purchasePrice: "Purchase price (warehouse)",
     productCreatedSuccess: "Product created successfully",
-    createProduct: "Create product"
+    createProduct: "Create product",
+    digitalForms: "Forms",
+    chooseDigitalForm: "Choose a digital form",
+    digitalForm1: "T01 — Cleaning & infrastructure inspection",
+    digitalForm2: "T03 — Fault log",
+    digitalForm3: "T02 — Goods receipt log",
+    saveDigitalForm: "Save",
+    digitalFormSaved: "Form saved successfully.",
+    digitalFormSaveError: "Could not save the form.",
+    formT01RequiredDateSignature: "Please enter inspection date and signature.",
+    savingDigitalForm: "Saving…",
+    signatureClear: "Clear signature",
+    signatureHint: "Sign here with your finger or mouse",
+    digitalSignatureLabel: "Digital signature",
+    formT03CompleteRows:
+      "Enter fault date, details, and draw the responsible signature (one fault per submission).",
+    formT03DrawSignature: "Please draw a signature.",
+    formT03ConfirmSignature: "Apply signature",
+    formT03SignRow: "Sign",
+    formT03RowWord: "Row",
+    formT02CompleteFields:
+      "Enter receipt date and time, product name, receiver name, and draw a signature."
   },
   hebrew: {
     image: "תמונה",
@@ -266,7 +308,28 @@ const LA = {
     salePrice: "מחיר מכירה",
     purchasePrice: "מחיר קניה (מחסן)",
     productCreatedSuccess: "המוצר נוצר בהצלחה ונוסף למוצרים",
-    createProduct: "צור מוצר"
+    createProduct: "צור מוצר",
+    digitalForms: "טפסים",
+    chooseDigitalForm: "בחר טופס דיגיטלי",
+    digitalForm1: "T01 — בדיקת ניקיון ותשתיות",
+    digitalForm2: "T03 — ספר תקלות",
+    digitalForm3: "T02 — יומן קבלת סחורה",
+    saveDigitalForm: "שמירה",
+    digitalFormSaved: "הטופס נשמר בהצלחה.",
+    digitalFormSaveError: "שגיאה בשמירת הטופס.",
+    formT01RequiredDateSignature: "נא למלא תאריך בדיקה וחתימה.",
+    savingDigitalForm: "שומר…",
+    signatureClear: "נקה חתימה",
+    signatureHint: "חתום כאן בעכבר או באצבע",
+    digitalSignatureLabel: "חתימה דיגיטלית",
+    formT03CompleteRows:
+      "נא למלא תאריך תקלה, פרטים בשדות הרלוונטיים, ולחתום כאחראי (תקלה אחת לכל שמירה).",
+    formT03DrawSignature: "נא לצייר חתימה בלוח.",
+    formT03ConfirmSignature: "אישור חתימה",
+    formT03SignRow: "חתום",
+    formT03RowWord: "שורה",
+    formT02CompleteFields:
+      "נא למלא תאריך ושעת קבלה, שם מוצר, שם מקבל וחתימה דיגיטלית."
   },
 };
 
