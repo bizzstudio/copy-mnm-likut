@@ -2,8 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import "./style.css";
-import loginImg from "/loginImg.svg"
-import leaf from "/leaf.svg"
+import bizzexpoLogo from "/bizzexpo-logo.svg"
 import { getWord } from "../Language";
 
 function Login() {
@@ -35,8 +34,7 @@ function Login() {
         <div className="loginPage">
             <div className="card">
                 {/* <span className="title">ברוכים הבאים למערכת הליקוט של</span> */}
-                <img src={leaf} alt="leaf" className="leaf" />
-                <img src={loginImg} alt="login image" className="loginImg" />
+                <img src={bizzexpoLogo} alt="BizzExpo" className="loginImg" />
                 <form className="form" onSubmit={handleLogin}>
                     <div className="group">
                         <input
