@@ -8,7 +8,7 @@ import "./style.css";
 import { getWord } from "../Language";
 import axios from "axios";
 import TabSwitcher from "../TabSwitcher";
-import loginImg from "/loginImg.svg"
+import bizzexpoLogo from "/bizzexpo-logo.svg"
 import OrderPreview from "../OrderPreview";
 import BarcodeStockModal from "../BarcodeStockModal";
 import { FiCamera } from "react-icons/fi";
@@ -229,7 +229,7 @@ export default function Items({ orders, loading, setLoading, go }) {
       ) : (
         <>
           <div className="w-full border-b border-gray-200 pb-2 pt-1 px-2 from-mainColor-light/20 to-white bg-gradient-to-b">
-            <img src={loginImg} alt="לוגו מערכת ליקוט" className="h-[150px] mx-auto" />
+            <img src={bizzexpoLogo} alt="BizzExpo" className="h-[70px] w-auto mx-auto" />
           </div>
 
           <div className="sticky top-0 z-10 px-3 py-1.5 border-b border-gray-200 bg-white bg-opacity-90 backdrop-blur-sm">

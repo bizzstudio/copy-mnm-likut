@@ -1,6 +1,6 @@
 import React from "react";
 import "./style.css";
-import logo from "/logo.svg";
+import logo from "/bizzexpo-logo.svg";
 import useLoadingStore from "../../LoadingContext";
 import { getWord } from "../Language";
 

@@ -13,7 +13,7 @@ import { FaCheckCircle, FaBoxOpen, FaPlus, FaMinus, FaCheck, FaBarcode, FaCamera
 import { FaXmark } from "react-icons/fa6";
 import spinnerLoadingImage from "/spinner.gif";
 import dayjs from "dayjs";
-import loginImg from "/loginImg.svg"
+import bizzexpoLogo from "/bizzexpo-logo.svg"
 
 export default function Item({ setOrders, orders, setUpdateOrders, setId, loading, setLoading }) {
   const numberOfOrder = useParams();
@@ -673,7 +673,7 @@ export default function Item({ setOrders, orders, setUpdateOrders, setId, loadin
       ) : (
         <>
           <div className="w-full border-b border-gray-200 pb-2 pt-1 px-2 from-mainColor-light/20 to-white bg-gradient-to-b">
-            <img src={loginImg} alt="לוגו מערכת ליקוט" className="h-[150px] mx-auto" />
+            <img src={bizzexpoLogo} alt="BizzExpo" className="h-[70px] w-auto mx-auto" />
           </div>
           <div className="flex flex-col gap-4 p-4 pb-0 max-w-[1300px] mx-auto">
             <div className="flex items-center justify-between gap-4">
